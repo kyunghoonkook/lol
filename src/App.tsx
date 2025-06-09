@@ -3,6 +3,7 @@ import io from 'socket.io-client';
 import PlayerForm from './components/PlayerForm';
 import PlayerList from './components/PlayerList';
 import TeamDisplay from './components/TeamDisplay';
+import AuctionDisplay from './components/AuctionDisplay';
 import './App.css';
 
 // 배포 환경에 따른 서버 URL 설정
@@ -25,12 +26,26 @@ export interface TeamPosition {
   support: Player | null;
 }
 
+export interface AuctionState {
+  isActive: boolean;
+  currentPlayer: Player | null;
+  currentBid: number;
+  currentBidder: string | null;
+  teamPoints: {
+    team1: number;
+    team2: number;
+  };
+  auctionedPlayers: (Player & { team: string; price: number })[];
+  timer: number;
+}
+
 export interface GameState {
   players: Player[];
   teams: {
     team1: TeamPosition;
     team2: TeamPosition;
   };
+  auction: AuctionState;
   lastModified: number;
 }
 
@@ -41,11 +56,21 @@ function App() {
       team1: { top: null, jungle: null, mid: null, adc: null, support: null },
       team2: { top: null, jungle: null, mid: null, adc: null, support: null }
     },
+    auction: {
+      isActive: false,
+      currentPlayer: null,
+      currentBid: 0,
+      currentBidder: null,
+      teamPoints: { team1: 100, team2: 100 },
+      auctionedPlayers: [],
+      timer: 0
+    },
     lastModified: Date.now()
   });
   
   const [isConnected, setIsConnected] = useState(false);
   const [socket, setSocket] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<'team' | 'auction'>('team');
 
   useEffect(() => {
     try {
@@ -209,6 +234,15 @@ function App() {
             team1: { top: null, jungle: null, mid: null, adc: null, support: null },
             team2: { top: null, jungle: null, mid: null, adc: null, support: null }
           },
+          auction: {
+            isActive: false,
+            currentPlayer: null,
+            currentBid: 0,
+            currentBidder: null,
+            teamPoints: { team1: 100, team2: 100 },
+            auctionedPlayers: [],
+            timer: 0
+          },
           lastModified: Date.now()
         });
       }
@@ -227,22 +261,41 @@ function App() {
   return (
     <div className="App">
       <header className="app-header">
-        <h1>🎮 리그오브레전드 팀 밸런서</h1>
+        <h1>🎮 내전 팀짜기 -경훈-</h1>
         <div className="connection-status">
           <span className={`status-indicator ${isConnected ? 'connected' : 'offline'}`}>
             {isConnected ? '🟢 실시간 연결' : '🔴 오프라인 모드'}
           </span>
         </div>
+        
+        {/* 탭 네비게이션 */}
+        <div className="tab-navigation">
+          <button 
+            className={`tab-btn ${activeTab === 'team' ? 'active' : ''}`}
+            onClick={() => setActiveTab('team')}
+          >
+            ⚖️ 팀 밸런싱
+          </button>
+          <button 
+            className={`tab-btn ${activeTab === 'auction' ? 'active' : ''}`}
+            onClick={() => setActiveTab('auction')}
+          >
+            🔨 플레이어 경매
+          </button>
+        </div>
+
         <div className="header-info">
           <span className="player-count">플레이어: {gameState.players.length}명</span>
           <div className="action-buttons">
-            <button 
-              className="auto-balance-btn"
-              onClick={autoBalance}
-              disabled={gameState.players.length < 2}
-            >
-              ⚖️ 자동 밸런싱
-            </button>
+            {activeTab === 'team' && (
+              <button 
+                className="auto-balance-btn"
+                onClick={autoBalance}
+                disabled={gameState.players.length < 2}
+              >
+                ⚖️ 자동 밸런싱
+              </button>
+            )}
             <button 
               className="reset-btn"
               onClick={resetGame}
@@ -264,32 +317,43 @@ function App() {
         </div>
 
         <div className="right-panel">
-          <div className="balance-indicator">
-            <div className="team-scores">
-              <span className={`team-score ${team1Score > team2Score ? 'stronger' : team1Score < team2Score ? 'weaker' : 'balanced'}`}>
-                팀 1: {team1Score}점
-              </span>
-              <span className="vs">VS</span>
-              <span className={`team-score ${team2Score > team1Score ? 'stronger' : team2Score < team1Score ? 'weaker' : 'balanced'}`}>
-                팀 2: {team2Score}점
-              </span>
-            </div>
-            <div className="balance-status">
-              {Math.abs(team1Score - team2Score) <= 2 && team1Score > 0 && team2Score > 0
-                ? '⚖️ 균형잡힌 팀'
-                : Math.abs(team1Score - team2Score) > 5
-                ? '⚠️ 불균형한 팀'
-                : '📊 보통 균형'
-              }
-            </div>
-          </div>
+          {activeTab === 'team' ? (
+            <>
+              <div className="balance-indicator">
+                <div className="team-scores">
+                  <span className={`team-score ${team1Score > team2Score ? 'stronger' : team1Score < team2Score ? 'weaker' : 'balanced'}`}>
+                    팀 1: {team1Score}점
+                  </span>
+                  <span className="vs">VS</span>
+                  <span className={`team-score ${team2Score > team1Score ? 'stronger' : team2Score < team1Score ? 'weaker' : 'balanced'}`}>
+                    팀 2: {team2Score}점
+                  </span>
+                </div>
+                <div className="balance-status">
+                  {Math.abs(team1Score - team2Score) <= 2 && team1Score > 0 && team2Score > 0
+                    ? '⚖️ 균형잡힌 팀'
+                    : Math.abs(team1Score - team2Score) > 5
+                    ? '⚠️ 불균형한 팀'
+                    : '📊 보통 균형'
+                  }
+                </div>
+              </div>
 
-          <TeamDisplay
-            teams={gameState.teams}
-            players={gameState.players}
-            onAssignToTeam={assignToTeam}
-            onRemoveFromTeam={removeFromTeam}
-          />
+              <TeamDisplay
+                teams={gameState.teams}
+                players={gameState.players}
+                onAssignToTeam={assignToTeam}
+                onRemoveFromTeam={removeFromTeam}
+              />
+            </>
+          ) : (
+            <AuctionDisplay
+              auction={gameState.auction}
+              players={gameState.players}
+              isConnected={isConnected}
+              socket={socket}
+            />
+          )}
         </div>
       </main>
     </div>
