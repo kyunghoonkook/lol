@@ -37,6 +37,8 @@ export interface AuctionState {
   };
   auctionedPlayers: (Player & { team: string; price: number })[];
   timer: number;
+  auctionOrder: Player[];
+  currentIndex: number;
 }
 
 export interface GameState {
@@ -63,7 +65,9 @@ function App() {
       currentBidder: null,
       teamPoints: { team1: 100, team2: 100 },
       auctionedPlayers: [],
-      timer: 0
+      timer: 0,
+      auctionOrder: [],
+      currentIndex: 0
     },
     lastModified: Date.now()
   });
@@ -241,7 +245,9 @@ function App() {
             currentBidder: null,
             teamPoints: { team1: 100, team2: 100 },
             auctionedPlayers: [],
-            timer: 0
+            timer: 0,
+            auctionOrder: [],
+            currentIndex: 0
           },
           lastModified: Date.now()
         });
