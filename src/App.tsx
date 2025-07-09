@@ -222,9 +222,124 @@ function App() {
     if (isConnected && socket) {
       socket.emit('autoBalance');
     } else {
-      // 간단한 로컬 밸런싱 알고리즘
-      alert('오프라인 모드에서는 수동 배치를 사용해주세요.');
+      // 로컬 자동 밸런싱 알고리즘 (중복 방지)
+      autoBalanceLocal();
     }
+  };
+
+  // 로컬 자동 밸런싱 함수
+  const autoBalanceLocal = () => {
+    const availablePlayers = gameState.players.filter(player => {
+      // 이미 팀에 배치된 선수는 제외
+      const isInTeam1 = Object.values(gameState.teams.team1).some(p => p?.id === player.id);
+      const isInTeam2 = Object.values(gameState.teams.team2).some(p => p?.id === player.id);
+      return !isInTeam1 && !isInTeam2;
+    });
+
+    if (availablePlayers.length === 0) {
+      alert('배치할 수 있는 선수가 없습니다.');
+      return;
+    }
+
+    // 팀 초기화
+    const newTeams = {
+      team1: { top: null, jungle: null, mid: null, adc: null, support: null },
+      team2: { top: null, jungle: null, mid: null, adc: null, support: null }
+    };
+
+    // 포지션별로 선수 분류
+    const positionPlayers: { [key: string]: Player[] } = {
+      top: [],
+      jungle: [],
+      mid: [],
+      adc: [],
+      support: []
+    };
+
+    availablePlayers.forEach(player => {
+      player.positions.forEach(position => {
+        if (positionPlayers[position]) {
+          positionPlayers[position].push(player);
+        }
+      });
+    });
+
+    // 각 포지션별로 점수 순으로 정렬
+    Object.keys(positionPlayers).forEach(position => {
+      positionPlayers[position].sort((a, b) => b.score - a.score);
+    });
+
+    const usedPlayers = new Set<string>(); // 중복 방지를 위한 Set
+    const positions = ['top', 'jungle', 'mid', 'adc', 'support'];
+
+    // 각 포지션에 대해 균형잡힌 배치
+    positions.forEach(position => {
+      const availableForPosition = positionPlayers[position].filter(p => !usedPlayers.has(p.id));
+      
+      if (availableForPosition.length >= 2) {
+        // 점수가 높은 선수를 team1에, 두 번째로 높은 선수를 team2에
+        const team1Player = availableForPosition[0];
+        const team2Player = availableForPosition[1];
+        
+        (newTeams.team1 as any)[position] = team1Player;
+        (newTeams.team2 as any)[position] = team2Player;
+        
+        usedPlayers.add(team1Player.id);
+        usedPlayers.add(team2Player.id);
+      } else if (availableForPosition.length === 1) {
+        // 한 명만 있는 경우 점수가 낮은 팀에 배치
+        const team1Score = calculateTeamScore(newTeams.team1);
+        const team2Score = calculateTeamScore(newTeams.team2);
+        
+        if (team1Score <= team2Score) {
+          (newTeams.team1 as any)[position] = availableForPosition[0];
+        } else {
+          (newTeams.team2 as any)[position] = availableForPosition[0];
+        }
+        
+        usedPlayers.add(availableForPosition[0].id);
+      }
+    });
+
+    // 남은 선수들을 균형에 맞춰 배치
+    const remainingPlayers = availablePlayers.filter(p => !usedPlayers.has(p.id));
+    remainingPlayers.sort((a, b) => b.score - a.score);
+
+    remainingPlayers.forEach(player => {
+      const team1Score = calculateTeamScore(newTeams.team1);
+      const team2Score = calculateTeamScore(newTeams.team2);
+      
+      // 빈 포지션 찾기
+      const emptyPositions1 = positions.filter(pos => 
+        !newTeams.team1[pos as keyof TeamPosition] && 
+        player.positions.includes(pos)
+      );
+      const emptyPositions2 = positions.filter(pos => 
+        !newTeams.team2[pos as keyof TeamPosition] && 
+        player.positions.includes(pos)
+      );
+
+      if (team1Score <= team2Score && emptyPositions1.length > 0) {
+        (newTeams.team1 as any)[emptyPositions1[0]] = player;
+      } else if (emptyPositions2.length > 0) {
+        (newTeams.team2 as any)[emptyPositions2[0]] = player;
+      }
+    });
+
+    // 상태 업데이트
+    setGameState(prev => ({
+      ...prev,
+      teams: newTeams,
+      lastModified: Date.now()
+    }));
+
+    // 결과 알림
+    const finalTeam1Score = calculateTeamScore(newTeams.team1);
+    const finalTeam2Score = calculateTeamScore(newTeams.team2);
+    const balanceDiff = Math.abs(finalTeam1Score - finalTeam2Score);
+    
+    const balanceMessage = balanceDiff <= 2 ? '균형잡힌' : balanceDiff <= 5 ? '보통' : '불균형한';
+    alert(`자동 밸런싱 완료!\n팀 1: ${finalTeam1Score}점\n팀 2: ${finalTeam2Score}점\n상태: ${balanceMessage} 팀`);
   };
 
   const resetGame = () => {

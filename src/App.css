@@ -321,7 +321,8 @@ body {
 
 .player-list {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  flex-wrap: wrap;
   gap: 1rem;
   max-height: 500px;
   overflow-y: auto;
@@ -333,6 +334,8 @@ body {
   padding: 1rem;
   background: white;
   transition: all 0.3s ease;
+  min-width: 280px;
+  flex: 0 0 auto;
 }
 
 .player-item:hover {
@@ -731,6 +734,16 @@ body {
   
   .vs {
     transform: rotate(90deg);
+  }
+  
+  /* 모바일에서 선수 카드 세로 배치 */
+  .player-list {
+    flex-direction: column;
+    flex-wrap: nowrap;
+  }
+  
+  .player-item {
+    min-width: auto;
   }
 }
 
