@@ -301,6 +301,7 @@ body {
   padding: 1.5rem;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   flex: 1;
+  height: auto;
 }
 
 .player-list-container h3 {
@@ -324,8 +325,6 @@ body {
   flex-direction: row;
   flex-wrap: wrap;
   gap: 1rem;
-  max-height: 500px;
-  overflow-y: auto;
 }
 
 .player-item {
@@ -747,24 +746,7 @@ body {
   }
 }
 
-/* Scrollbar Styling */
-.player-list::-webkit-scrollbar {
-  width: 6px;
-}
-
-.player-list::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 3px;
-}
-
-.player-list::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 3px;
-}
-
-.player-list::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
-}
+/* Scrollbar Styling Removed - No longer needed */
 
 /* Loading and Transition Effects */
 .fade-enter {
